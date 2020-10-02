@@ -1,6 +1,6 @@
 ## Summary 
 
-Primary data analysis for this project was carried out in May 2020. Results of this analysis can be viewed in a Carto map [here](bit.ly/midwest_H20). This file explains the data analyses and file formats for each of the data outputs for the project on water shutoffs across cities in the midwest. The filename endings listed below would be appended to the name of a city (e.g. — the shutoffs file for Chicago will read 'chicago_zip_year_shutoffs.csv').
+Primary data analysis for this project was carried out in May 2020. Results of this analysis can be viewed in a Carto map at [bit.ly/midwest_H20](https://mit.carto.com/u/ezmckinn-mit-webmap/builder/ffb88b57-39be-41b0-af63-614b9f3c8b64/embed). This file explains the data analyses and file formats for each of the data outputs for the project on water shutoffs across cities in the midwest. The filename endings listed below would be appended to the name of a city (e.g. — the shutoffs file for Chicago will read 'chicago_zip_year_shutoffs.csv').
 
 # Files
 
