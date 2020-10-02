@@ -1,14 +1,8 @@
-README
-By: Emmett McKinney
-Contact: (310) 999-9353, ezmckinn@alum.mit.edu
-Date: May 27, 2020
+**Summary** 
 
+Primary data analysis for this project was carried out in May 2020. This file explains the data analyses and file formats for each of the data outputs for the project on water shutoffs across cities in the midwest. The filename endings listed below would be appended to the name of a city (e.g. — the shutoffs file for Chicago will read 'chicago_zip_year_shutoffs.csv').
 
-Summary: This file explains the data analyses and file formats for each of the data outputs for the project on water shutoffs across cities in the midwest. This data was provided by WBEZ Chicago.
-
-Data from each city will need to be cleaned and summarized on its own. But that can be done in the "Read in and Clean Shutoffs Data" portion of the data_clean script. 
-
-*****DATA FOLDER*****
+*Files*
 
 <cityname>_shutoffs_summary.geojson: 
 
@@ -26,9 +20,7 @@ The R script used to get ACS data, clean it, a well as upload the raw shutoffs d
 
 The Red file used to analyze the geojson and produce the contents of the results folder. 
 
-*****RESULTS FOLDER*****
-
-This folder includes the analyses carried out in May 2020. 
+**Results**
 
 Outputs include: 
 
