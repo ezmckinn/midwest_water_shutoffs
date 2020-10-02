@@ -1,0 +1,324 @@
+---
+title: "Data Cleaning Script: Chicago"
+author: "Emmett McKinney"
+date: "5/27/2019"
+output: html_document
+---
+
+**THIS DOCUMENT JOINS SHUTOFF WITH CENSUS DATA & DOES SOME INITIAL ANALYSIS**
+
+*Step 0: Intro*
+
+To replicate this for other cities:
+
+1. Find and replace all names of "Chicago" with the right city name
+2. Update data cleaning strategy in Step 4.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Chicago")
+```
+
+```{r}
+#Install needed packages 
+
+library(dplyr)
+library(tidyr)
+library(tidycensus)
+library(ggplot2)
+library(censusapi)
+library(tidyverse)
+library(Hmisc)
+library(readxl)
+library(stargazer)
+library(sf)
+```
+
+```{r}
+#install new census key, over-writing any old keys.
+
+Sys.setenv(CENSUS_KEY="4c8277e5003e698cf77bbda813f1bcc7eb332b31") #set API key
+readRenviron("~/.Renviron") #update R to use census key.
+```
+
+*Step 1. Read In Census Data* 
+
+```{r}
+geo <- get_acs( # get data for 2018
+  geography = "zcta", #zip code tabulation area
+  survey = "acs5",#ACS5 year survey
+  cache_table = TRUE,  
+  variables = "B02001_001",
+  year = 2017,
+  geometry = TRUE,
+  output = "wide",
+  ) %>% 
+  filter(startsWith(GEOID, "60")) %>%
+  select(GEOID, geometry) #only need GEOID and geometry columns
+geo$GEOID <- as.numeric(geo$GEOID) 
+```
+
+
+```{r}
+vars <- c(Total_Pop = "B02001_001", #total population
+          White = "B02001_002", #white population
+          Black = "B02001_003", 
+          Native = "B02001_004", 
+          Asian = "B02001_005", 
+          Latino = "B03002_012",
+          HIPI = "B02001_006", 
+          Other = "B02001_007", 
+          TWOPLUS = "B02001_008", 
+          Utils_Incl = "B25069_001", #utilities ARE included in rent
+          MHI = "B19013_001", #median household income
+          TotalHH = "B25003_001", #total households
+          TotalOwn = "B25003_002", #owner occupied households
+          TotalRent = "B25003_003",
+          WhiteOwn = "B25003A_002", #white owner occupied households 
+          WhiteRent = "B25003A_003",
+          BlackOwn = "B25003B_002", #black owner occupied households 
+          BlackRent = "B25003B_003",
+          HispOwn = "B25003I_002",
+          HispRent = "B25003I_003",
+          MedYrBlt = "B25037_001", #median age of structure, total
+          RenYrBlt = "B25037_003", #median age of structure, renters
+          OwnYrBlt = "B25037_002") #median age of structure, owners
+```
+
+*Step 2. Read In & Clean Census Data* 
+```{r}
+data_17 <- get_acs( # get data for 2017
+  geography = "zcta", #zip code tabulation area
+  survey = "acs5",#ACS5 year survey
+  cache_table = TRUE,  
+  variables = vars, 
+  year = 2017
+  ) %>% 
+  filter(startsWith(GEOID, "60")) %>% 
+  pivot_wider(names_from = variable, values_from = c(estimate, moe)) #zip codes in Chicago
+
+data_est_17 <- data_17 %>% select(c(GEOID, contains("estimate"))) #split up by contains "estimate"
+
+names(data_est_17) <- substring(names(data_est_17), 10) # renamed all the columns, dropping the first 10 letters
+data_est_17 <- rename(data_est_17, GEOID = 1) #rename first column in df to say GEOID 
+data_est_17$GEOID <- as.numeric(data_est_17$GEOID) #specify that this is numeric so that I can join it to numeric value (which will be "zip" in the shutoffs dataset)
+
+##SAME THING FOR 2016
+
+data_16 <- get_acs(
+  geography = "zcta",
+  survey = "acs5", 
+  cache_table = TRUE, 
+  variables = vars,
+  year = 2016
+  ) %>%
+  filter(startsWith(GEOID, "60")) %>% 
+  pivot_wider(names_from = variable, values_from = c(estimate, moe)) 
+
+data_est_16 <- data_16 %>% select(c(GEOID, contains("estimate")))
+
+names(data_est_16) <- substring(names(data_est_16), 10)
+data_est_16 <- rename(data_est_16, GEOID = 1) 
+data_est_16$GEOID <- as.numeric(data_est_16$GEOID)
+
+data_15 <- get_acs(
+  geography = "zcta",
+  survey = "acs5", 
+  cache_table = TRUE, 
+  variables = vars,
+  year = 2015
+  ) %>%
+  filter(startsWith(GEOID, "60")) %>% 
+  pivot_wider(names_from = variable, values_from = c(estimate, moe)) 
+
+data_est_15 <- data_15 %>% select(c(GEOID, contains("estimate")))
+
+names(data_est_15) <- substring(names(data_est_15), 10)
+data_est_15 <- rename(data_est_15, GEOID = 1) 
+data_est_15$GEOID <- as.numeric(data_est_15$GEOID)
+
+data_14 <- get_acs(
+  geography = "zcta",
+  survey = "acs5", 
+  cache_table = TRUE, 
+  variables = vars,
+  year = 2014
+  ) %>%
+  filter(startsWith(GEOID, "60")) %>% 
+  pivot_wider(names_from = variable, values_from = c(estimate, moe)) 
+
+data_est_14 <- data_14 %>% select(c(GEOID, contains("estimate")))
+
+names(data_est_14) <- substring(names(data_est_14), 10)
+data_est_14 <- rename(data_est_14, GEOID = 1) 
+data_est_14$GEOID <- as.numeric(data_est_14$GEOID)
+
+data_13 <- get_acs(
+  geography = "zcta",
+  survey = "acs5", 
+  cache_table = TRUE, 
+  variables = vars,
+  year = 2013
+  ) %>%
+  filter(startsWith(GEOID, "60")) %>% 
+  pivot_wider(names_from = variable, values_from = c(estimate, moe))
+
+data_est_13 <- data_13 %>% select(c(GEOID, contains("estimate")))
+
+names(data_est_13) <- substring(names(data_est_13), 10)
+data_est_13 <- rename(data_est_13, GEOID = 1) 
+data_est_13$GEOID <- as.numeric(data_est_13$GEOID)
+
+data_12 <- get_acs(
+  geography = "zcta",
+  survey = "acs5", 
+  cache_table = TRUE, 
+  variables = vars,
+  year = 2012
+  ) %>%
+  filter(startsWith(GEOID, "60")) %>% 
+  pivot_wider(names_from = variable, values_from = c(estimate, moe)) 
+
+data_est_12 <- data_12 %>% select(c(GEOID, contains("estimate")))
+
+names(data_est_12) <- substring(names(data_est_12), 10)
+data_est_12 <- rename(data_est_12, GEOID = 1) 
+data_est_12$GEOID <- as.numeric(data_est_12$GEOID)
+
+data_11 <- get_acs(
+  geography = "zcta",
+  survey = "acs5", 
+  cache_table = TRUE, 
+  variables = vars,
+  year = 2011
+  ) %>%
+  filter(startsWith(GEOID, "60")) %>% 
+  pivot_wider(names_from = variable, values_from = c(estimate, moe)) 
+
+data_est_11 <- data_11 %>% select(c(GEOID, contains("estimate")))
+
+names(data_est_11) <- substring(names(data_est_11), 10)
+data_est_11 <- rename(data_est_12, GEOID = 1) 
+data_est_11$GEOID <- as.numeric(data_est_11$GEOID)
+
+rm(data_11, data_12, data_13, data_14, data_15, data_16, data_17) #drop dfs we don't need anymore 
+```
+
+*Step 3. Read in Raw Shutoffs Data*
+
+```{r}
+orders <- read.csv("/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Chicago-Philly Paper/Chicago/Shutoffs/chicago_shutoffs_2007-2018.csv")
+```
+
+*Step 4. Summarize Shutoff Statistics by Zip Code*
+
+```{r}
+orders_summary <- orders %>% 
+    group_by(zip, year) %>% 
+    count(service_order_type) %>% mutate(
+    REST = sum(n[service_order_type == "REST"]), #rearranging columnns
+    SHUT = sum(n[service_order_type == "SHUT"]),
+    IRSO = sum(n[service_order_type == "IRSO"])) %>% 
+    select(-service_order_type, -n) %>%
+  distinct()
+```
+
+*Step 5. Split Up Shutoffs By Year; Join to the ACS-5 survey ending that year then join back together*
+
+```{r}
+shutoffs_17 <- filter(orders_summary, year == "2017")
+summary_17 <- left_join(shutoffs_17, data_est_17, copy = FALSE, by = c("zip" = "GEOID"))  #add in census data, lining it up by years.
+rm(shutoffs_17) 
+
+shutoffs_16 <- filter(orders_summary, year == "2016")
+summary_16 <- left_join(shutoffs_16, data_est_16, copy = FALSE, by = c("zip" = "GEOID"))  #add in census data, lining it up by years.
+rm(shutoffs_16) 
+
+shutoffs_15 <- filter(orders_summary, year == "2015")
+summary_15 <- left_join(shutoffs_15, data_est_15, copy = FALSE, by = c("zip" = "GEOID"))  #add in census data, lining it up by years. 
+rm(shutoffs_15) 
+
+shutoffs_14 <- filter(orders_summary, year == "2014")
+summary_14 <- left_join(shutoffs_14, data_est_14, copy = FALSE, by = c("zip" = "GEOID"))  #add in census data, lining it up by years. 
+rm(shutoffs_14) 
+
+shutoffs_13 <- filter(orders_summary, year == "2013")
+summary_13 <- left_join(shutoffs_13, data_est_13, copy = FALSE, by = c("zip" = "GEOID"))  #add in census data, lining it up by years. 
+rm(shutoffs_13) 
+
+shutoffs_12 <- filter(orders_summary, year == "2012")
+summary_12 <- left_join(shutoffs_12, data_est_12, copy = FALSE, by = c("zip" = "GEOID"))  #add in census data, lining it up by years. 
+rm(shutoffs_12) 
+
+shutoffs_11 <- filter(orders_summary, year == "2011")
+summary_11 <- left_join(shutoffs_11, data_est_11, copy = FALSE, by = c("zip" = "GEOID"))
+rm(shutoffs_11) #add in census data, lining it up by years. 
+
+shutoffs_summary <- rbind(summary_11, summary_12, summary_13, summary_14, summary_15,summary_16, summary_17) %>% distinct() #join together
+
+rm(summary_11, summary_12, summary_13, summary_14, summary_15,summary_16, summary_17) #get rid of dataframes we don't need
+```
+
+*Step 6. Add in new columns to shutoff summary file & write out as .csv*
+
+```{r}
+#Add in new columns
+shutoffs_summary <- shutoffs_summary %>% 
+  mutate(shutoffs_1000p = ((SHUT)/(Total_Pop/1000)),
+         shutoffs_HH = (SHUT)/TotalHH,
+         Prc_W = White / Total_Pop,
+         Prc_Blk = Black / Total_Pop,
+         Prc_Hisp = Latino / Total_Pop,
+         Prc_W_Own = WhiteOwn/TotalHH,
+         Prc_B_Own = BlackOwn/TotalHH,
+         Prc_Hisp_Own = HispOwn/TotalHH,
+         Prc_Utils_Incl = Utils_Incl / TotalRent,
+         Prc_Rnt = TotalRent/TotalHH,
+         Prc_Own = TotalOwn/TotalHH,
+         Prc_NonW = 1-Prc_W,
+         Prc_NonW_Own = 1-Prc_W_Own,
+         log_Prc_NonW = log(Prc_NonW),
+         log_NonW_Own = log(Prc_NonW_Own),
+         log_shut = log(SHUT),
+         log_MHI = log(MHI)
+        ) %>%
+  filter(!is.na(shutoffs_1000p)) %>%
+  distinct()
+
+write.csv(shutoffs_summary, file= "/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Chicago/Data/chicago_zip_year_shutoffs.csv")
+
+shutoffs_zip_allyears <- shutoffs_summary %>% group_by(zip) %>% summarise(
+  total_SHUT = sum(SHUT),
+  mean_SHUT = mean(SHUT),
+  mean_shutoffs_1000p = mean(shutoffs_1000p),
+  mean_shutoffs_HH = mean(shutoffs_HH),
+  Prc_W = mean(Prc_W),
+  Prc_Blk = mean(Prc_Blk),
+  Prc_W_Own = mean(Prc_W_Own),
+  Prc_B_Own = mean(BlackOwn/TotalHH),
+  Prc_Hisp_Own = mean(HispOwn/TotalHH),
+  Prc_Utils_Incl = mean(Utils_Incl / TotalRent),
+  Prc_Rnt = mean(TotalRent/TotalHH),
+  Prc_Own = mean(TotalOwn/TotalHH),
+  Prc_NonW = mean(1-Prc_W),
+  Prc_NonW_Own = mean(1-Prc_W_Own),
+  log_Prc_NonW = mean(log(Prc_NonW)),
+  log_NonW_Own = mean(log(Prc_NonW_Own)),
+  log_shut = mean(log(SHUT)),
+  log_MHI = mean(log(MHI))
+) %>% distinct()
+
+write.csv(shutoffs_zip_allyears, file= "/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Chicago/Data/chicago_zip_allyears.csv")
+
+shutoffs_all_years_geo <- left_join(shutoffs_zip_allyears, geo, by = c("zip" = "GEOID"))
+st_write(shutoffs_all_years_geo, "/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Chicago/Data/chicago_all_years_shutoffs.geojson", delete_dsn = TRUE) 
+```
+
+*Step 7. Join .csv to zip code geometry & write out as .geojson*
+
+```{r}
+shutoffs_geo <- left_join(shutoffs_summary, geo, by = c("zip" = "GEOID"))
+st_write(shutoffs_geo, "chicago_zip_year_shutoffs.geojson", delete_dsn = TRUE) 
+```
+
+
