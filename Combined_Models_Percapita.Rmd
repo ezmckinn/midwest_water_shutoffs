@@ -1,0 +1,212 @@
+---
+title: "Water Shutoffs Spatial Regression Models"
+author: "Emmett"
+date: "5/30/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(sf)
+library(dplyr)
+library(stargazer)
+library(spatialreg)
+```
+
+```{r, echo = FALSE}
+#Read in GeoJSONs for each city
+
+chicago_shutoffs <- st_read("/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Chicago/Data/chicago_zip_year_shutoffs.geojson") %>% mutate(shutoffs_1000p = (SHUT/(Total_Pop/1000)), log_shutoffs_1000p = log(shutoffs_1000p)) %>% drop_na()
+
+cleveland_shutoffs <- st_read("/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Cleveland/Data/cleveland_zip_year_shutoffs.geojson") %>% mutate(shutoffs_1000p = (SHUT/(Total_Pop/1000)), log_shutoffs_1000p = log(shutoffs_1000p)) %>% drop_na()
+
+detroit_shutoffs <- st_read("/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Detroit/Data/detroit_zip_year_shutoffs.geojson") %>% mutate(shutoffs_1000p = (SHUT/(Total_Pop/1000)), log_shutoffs_1000p = log(shutoffs_1000p)) %>% drop_na()
+
+duluth_shutoffs <- st_read("/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Duluth/Data/duluth_zip_year_shutoffs.geojson")  %>% mutate(shutoffs_1000p = (SHUT/(Total_Pop/1000)), log_shutoffs_1000p = log(shutoffs_1000p)) %>% drop_na()
+
+buffalo_shutoffs <- st_read("/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Buffalo/Data/buffalo_zip_year_shutoffs.geojson") %>% mutate(shutoffs_1000p = (SHUT/(Total_Pop/1000)), log_shutoffs_1000p = log(shutoffs_1000p)) %>% drop_na()
+
+philadelphia_shutoffs <- st_read("/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Philadelphia/Data/philadelphia_zip_year_shutoffs.geojson") %>% mutate(shutoffs_1000p = (SHUT/(Total_Pop/1000)), log_shutoffs_1000p = log(shutoffs_1000p)) %>% drop_na()
+```
+
+
+```{r}
+#Summary Stats for each city
+
+chicago_summary <- read.csv("/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Chicago/Results/chicago_summary_stats.csv") %>% mutate(city = "Chicago")
+
+cleveland_summary <- read.csv("/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Cleveland/Results/cleveland_summary_stats.csv") %>% mutate(city = "Cleveland")
+
+buffalo_summary <- read.csv("/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Buffalo/Results/buffalo_summary_stats.csv") %>% mutate(city = "Buffalo")
+
+detroit_summary <- read.csv("/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Detroit/Results/detroit_summary_stats.csv") %>% mutate(city = "Detroit")
+
+duluth_summary <- read.csv("/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Duluth/Results/duluth_summary_stats.csv") %>% mutate(city = "Duluth")
+
+philadelphia_summary <- read.csv("/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Duluth/Results/duluth_summary_stats.csv") %>% mutate(city = "Philadelphia") %>% rename(X = 1)
+
+city_summary <- rbind(chicago_summary, cleveland_summary, buffalo_summary, detroit_summary, duluth_summary, philadelphia_summary) %>%
+  filter(Maj_Minority == "Total") %>% 
+rename("Shutoffs Per 1000 Residents" = "n") %>%
+  select(-Maj_Minority, -X) %>% 
+  mutate_at(c("Shutoffs Per 1000 Residents", "mean", "median", "sd", "max", "min"), as.numeric)
+
+city_summary_rounded <- city_summary %>% mutate(across(is.numeric, round, 2)) %>%  select(city, everything())
+city_summary_rounded 
+
+rm(chicago_summary, buffalo_summary, cleveland_summary, duluth_summary, detroit_summary, philadelphia_summary)
+
+write.csv(city_summary_rounded, file = "/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Combined_PerCap_Results/City_summary_stats.csv")
+```
+
+```{r}
+#Histogram of all cities
+
+chicago_hist <- chicago_shutoffs %>% select(zip, year, SHUT, shutoffs_1000p, MHI, log_MHI, log_shut, log_shutoffs_1000p) %>% mutate("city" = "Chicago")
+buffalo_hist <- buffalo_shutoffs %>% select(zip, year, SHUT, shutoffs_1000p, MHI, log_MHI, log_shut, log_shutoffs_1000p) %>% mutate("city" = "Buffalo")
+cleveland_hist <- cleveland_shutoffs %>% select(zip, disconnection_year, SHUT, shutoffs_1000p, MHI, log_MHI, log_shut, log_shutoffs_1000p) %>% mutate("city" = "Cleveland") %>% rename("year"= "disconnection_year")
+detroit_hist <- detroit_shutoffs %>% select(zip, year, SHUT, shutoffs_1000p, MHI, log_MHI, log_shut, log_shutoffs_1000p) %>% mutate("city" = "Detroit")
+duluth_hist <- detroit_shutoffs %>% select(zip, year, SHUT, shutoffs_1000p, MHI, log_MHI, log_shut, log_shutoffs_1000p) %>% mutate("city" = "Duluth")
+
+hist <- rbind(chicago_hist, buffalo_hist, cleveland_hist, detroit_hist, duluth_hist)
+
+h <- ggplot(hist, aes(x=shutoffs_1000p, fill = city, color =  city)) +
+  geom_histogram(position = "identity", alpha = 0.5) + 
+  ggtitle("Shutoffs Per 1000 Residents") +
+  xlab("Total Shutoff Orders") +
+  ylab("Number of Zip Codes") +
+    facet_wrap(~city)
+h
+
+
+h_log <- ggplot(hist, aes(x=log_shutoffs_1000p, fill = city, color =  city)) +
+  geom_histogram(position = "identity", alpha = 0.5) + 
+  ggtitle("Log Shutoffs Per 1000 Residents") +
+  xlab("Total Shutoff Orders") +
+  ylab("Number of Zip Codes") +
+    facet_wrap(~city,  shrink = FALSE)
+h_log
+
+
+ggsave(h, file = "./shutoffs_1000p_hist.png")
+ggsave(h_log, file = "./log_shutoffs_1000p_hist.png")
+```
+
+
+```{r}
+#OLS Models for each city
+
+formula_2 <- log_shutoffs_1000p ~ log_Prc_NonW + log_MHI
+
+chicago_ols <- lm(formula = formula_2, data = chicago_shutoffs)
+cleveland_ols <- lm(formula = formula_2, data = cleveland_shutoffs)
+buffalo_ols <- lm(formula = formula_2, data = buffalo_shutoffs)
+detroit_ols <- lm(formula = formula_2, data = detroit_shutoffs)
+duluth_ols <- lm(formula = formula_2, data = duluth_shutoffs)
+philadelphia_ols <- lm(formula = formula_2, data = philadelphia_shutoffs)
+
+stargazer(chicago_ols, cleveland_ols, buffalo_ols, detroit_ols, duluth_ols, philadelphia_ols,
+          type = "html", 
+          title = "OLS Regression Models - All Cities", 
+          header = FALSE, 
+          column.labels = c("Chicago","Cleveland","Buffalo","Detroit","Duluth","Philadelphia*"), 
+          covariate.labels = c("Log % Non-White","Log Median Household Income"), 
+          dep.var.labels = "Log # of Water Shutoffs, per 1000 residents, by Zip Code", 
+          notes.label = "*Philadelphia are eligible shutoffs; Based on ACS-5 Year Data",
+          model.numbers = FALSE,
+          out =  "/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Combined_PerCap_Results/Combined_PerCap_OLS_Models.html")
+
+```
+
+```{r}
+#Lag Models for Each City
+
+chicago_weights <- nb2listw(poly2nb(chicago_shutoffs, queen = FALSE), style="W")
+cleveland_weights <- nb2listw(poly2nb(cleveland_shutoffs, queen = FALSE), style="W")
+buffalo_weights <- nb2listw(poly2nb(buffalo_shutoffs, queen = FALSE), style="W")
+detroit_weights <- nb2listw(poly2nb(detroit_shutoffs, queen = FALSE), style="W")
+duluth_weights <- nb2listw(poly2nb(duluth_shutoffs, queen = FALSE), style="W")
+philadelphia_weights <- nb2listw(poly2nb(philadelphia_shutoffs, queen = FALSE), style="W")
+
+chicago_lag <- lagsarlm(formula = formula_2, data = chicago_shutoffs, listw = chicago_weights, type = "lag")
+cleveland_lag <- lagsarlm(formula = formula_2, data = cleveland_shutoffs, listw = cleveland_weights, type = "lag")
+buffalo_lag <- lagsarlm(formula = formula_2, data = buffalo_shutoffs, listw = buffalo_weights, type = "lag")
+detroit_lag <- lagsarlm(formula = formula_2, data = detroit_shutoffs, listw = detroit_weights, type = "lag")
+duluth_lag  <- lagsarlm(formula = formula_2, data = duluth_shutoffs, listw = duluth_weights, type = "lag")
+philadelphia_lag <- lagsarlm(formula = formula_2, data = philadelphia_shutoffs, listw = philadelphia_weights, type = "lag")
+
+stargazer(chicago_lag, cleveland_lag, buffalo_lag, detroit_lag, duluth_lag, philadelphia_lag,
+          type = "html", 
+          title = "Spatial Lag Models - All Cities", 
+          header = FALSE, 
+          column.labels = c("Chicago","Cleveland","Buffalo","Detroit","Duluth", "Philadelphia*"), 
+          covariate.labels = c("Log % Non-White","Log Median Household Income"), 
+          dep.var.labels = "Log # of Water Shutoffs, per 1000 residents, by Zip Code", 
+          notes.label = "*Philadelphia are eligible shutoffs; Based on ACS-5 Year Data",
+          model.numbers = FALSE,
+          out =  "/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Combined_PerCap_Results/Combined_PerCap_Lag_Models.html")
+
+impacts(chicago_lag, listw=chicago_weights)
+impacts(cleveland_lag, listw=cleveland_weights)
+impacts(buffalo_lag, listw=buffalo_weights)
+impacts(detroit_lag, listw=detroit_weights)
+impacts(duluth_lag, listw=duluth_weights)
+impacts(philadelphia_lag, listw=philadelphia_weights)
+
+#COPY PASTE THESE IMPACTS INTO A .TXT file- there's no tidy function to do this. 
+
+```
+
+```{r}
+#Error Models for Each City
+
+chicago_err <- errorsarlm(formula = formula_2, data = chicago_shutoffs, listw = chicago_weights)
+cleveland_err <- errorsarlm(formula = formula_2, data = cleveland_shutoffs, listw = cleveland_weights)
+buffalo_err <- errorsarlm(formula = formula_2, data = buffalo_shutoffs, listw = buffalo_weights)
+detroit_err <- errorsarlm(formula = formula_2, data = detroit_shutoffs, listw = detroit_weights)
+duluth_err <- errorsarlm(formula = formula_2, data = duluth_shutoffs, listw = duluth_weights)
+philadelphia_err <- errorsarlm(formula = formula_2, data = philadelphia_shutoffs, listw = philadelphia_weights)
+
+stargazer(chicago_err, cleveland_err, buffalo_err, detroit_err, duluth_err, philadelphia_err,
+          type = "html", 
+          title = "Spatial Error Models - All Cities", 
+          header = FALSE, 
+          column.labels = c("Chicago","Cleveland","Buffalo","Detroit","Duluth", "Philadelphia*"), 
+          covariate.labels = c("Log % Non-White","Log Median Household Income"), 
+          dep.var.labels = "Log # of Water Shutoffs, per 1000 residents, by Zip Code", 
+          notes.label = "*Philadelphia are eligible shutoffs; others are realized. Based on ACS-5 Year Data.",
+          model.numbers = FALSE,
+          out =  "/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Combined_PerCap_Results/Combined_PerCap_Error_Models.html")
+
+```
+
+```{r}
+#AIC Comparison For each city
+
+chicago_aic <- AIC(chicago_ols, chicago_err, chicago_lag) %>% mutate(city = "Chicago")
+chicago_aic$model <- c("OLS", "ERR", "LAG")
+  
+cleveland_aic <- AIC(cleveland_ols, cleveland_err, cleveland_lag) %>% mutate(city = "Cleveland")
+cleveland_aic$model <- c("OLS", "ERR", "LAG")
+
+buffalo_aic <- AIC(buffalo_ols, buffalo_err, buffalo_lag) %>% mutate(city = "Buffalo")
+buffalo_aic$model <- c("OLS", "ERR", "LAG")
+
+detroit_aic <- AIC(detroit_ols, detroit_err, detroit_lag) %>% mutate(city = "Detroit")
+detroit_aic$model <- c("OLS", "ERR", "LAG")
+
+duluth_aic <- AIC(duluth_ols, duluth_err, duluth_lag) %>% mutate(city = "Duluth")
+duluth_aic$model <- c("OLS", "ERR", "LAG")
+
+philadelphia_aic <- AIC(philadelphia_ols, philadelphia_err, philadelphia_lag) %>% mutate(city = "Philadelphia")
+philadelphia_aic$model <- c("OLS", "ERR", "LAG")
+
+aic_comparison <- rbind(chicago_aic, cleveland_aic, buffalo_aic, detroit_aic, duluth_aic, philadelphia_aic) %>%
+pivot_wider(names_from = city, values_from = AIC) %>%  select(model, everything())
+  
+write.csv(aic_comparison, file = "/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120/Data/WBEZ_Data/Combined_PerCap_Results/AIC_comparison_percap.csv")
+```
+
+
+
