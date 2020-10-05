@@ -22,16 +22,16 @@ setwd("/Users/emmettmckinney/Dropbox (MIT)/RAship/ESI_Water_Affordability_031120
 ```{r}
 #Install needed packages 
 
-library(dplyr)
+library(dplyr) # package to manage data
 library(tidyr)
-library(tidycensus)
-library(ggplot2)
-library(censusapi)
+library(tidycensus) # package to census data
+library(ggplot2) 
+library(censusapi) 
 library(tidyverse)
 library(Hmisc)
 library(readxl)
-library(stargazer)
-library(sf)
+library(stargazer) #package to format tables
+library(sf) # package to handle spatial objects 
 ```
 
 ```{r}
@@ -57,7 +57,6 @@ geo <- get_acs( # get data for 2018
   select(GEOID, geometry) #only need GEOID and geometry columns
 geo$GEOID <- as.numeric(geo$GEOID) 
 ```
-
 
 ```{r}
 vars <- c(Total_Pop = "B02001_001", #total population
